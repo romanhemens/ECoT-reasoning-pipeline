@@ -5,7 +5,7 @@ import tensorflow_datasets as tfds
 import torch
 from PIL import Image
 from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
-from libero.utils.bounding_boxes.utils import NumpyFloatValuesEncoder, post_process_caption
+from generate_embodied_data.bounding_boxes.utils import NumpyFloatValuesEncoder, post_process_caption
 
 
 def generate_bounding_boxes(

@@ -1,4 +1,4 @@
-def generate_descriptions(tfds_name, start, end, device, hf_token, results_path):
+def generate_descriptions(tfds_name, tfds_dir, start, end, device, hf_token, results_path):
     import json
     import os
     import warnings
@@ -6,20 +6,17 @@ def generate_descriptions(tfds_name, start, end, device, hf_token, results_path)
     import torch
     from PIL import Image
     from tqdm import tqdm
-    from libero.utils.bounding_boxes.utils import NumpyFloatValuesEncoder
+    from generate_embodied_data.bounding_boxes.utils import NumpyFloatValuesEncoder
     from prismatic import load
 
     vlm_model_id = "prism-dinosiglip+7b"
     warnings.filterwarnings("ignore")
 
-    
-    DEFAULT_DATA_DIR = os.path.expanduser("~/tensorflow_datasets")
-
     # Load split
     ds, ds_info = tfds.load(
         tfds_name,
         split=f"train[{start}%:{end}%]",
-        data_dir=os.environ.get("TFDS_DATA_DIR", DEFAULT_DATA_DIR),
+        data_dir=tfds_dir,
         with_info=True,
     )
 

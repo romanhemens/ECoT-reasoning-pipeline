@@ -1,6 +1,4 @@
- import cv2
 import matplotlib
-import mediapy
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
@@ -190,13 +188,6 @@ def get_corrected_positions(episode_id, builder, plot=False):
 
     pr_pos = reg.predict(points_3d_pr)[:, :-1].astype(int)
 
-    if plot:
-        images = [
-            cv2.circle(img, (int(p[0]), int(p[1])), radius=5, color=(255, 0, 0), thickness=-1)
-            for img, p in zip(images, pr_pos)
-        ]
-        mediapy.show_video(images, fps=10)
-
     return pr_pos
 
 
@@ -272,14 +263,6 @@ def compute_gripper_positions(
 
         pr_pos = reg.predict(pos_3d_pr)[:, :-1].astype(int)
 
-        # Plot video if needed
-        if plot:
-            import cv2, mediapy
-            img_with_overlay = [
-                cv2.circle(img.copy(), (int(p[0]), int(p[1])), radius=5, color=(255, 0, 0), thickness=-1)
-                for img, p in zip(images_np, pr_pos)
-            ]
-            mediapy.show_video(img_with_overlay, fps=10)
 
         # Save results
         if file_path not in results:

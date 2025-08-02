@@ -4,15 +4,15 @@ import re
 import time
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from libero.constants import GEMINI_API_KEY
+from dotenv import load_dotenv
 import openai
-
 from google import genai
 
 class Gemini:
     def __init__(self, model_name="gemini-1.5-flash"):
-        
-        api_key = GEMINI_API_KEY
+
+        load_dotenv()
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError("Please set the GEMINI_API_KEY environment variable.")
         
