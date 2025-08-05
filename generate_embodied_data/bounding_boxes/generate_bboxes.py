@@ -41,16 +41,19 @@ def generate_bounding_boxes(
     model = AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to(device)
     print("[BBoxes] Model loaded.")
 
-    BOX_THRESHOLD = 0.3
-    TEXT_THRESHOLD = 0.2
+    BOX_THRESHOLD = 0.1
+    TEXT_THRESHOLD = 0.1
 
     bbox_results_json = {}
-    output_file = os.path.join(result_dir, f"results_{start}_{end}_bboxes.json")
+    output_file = os.path.join(result_dir, f"bboxes.json")
 
     for ep_idx, episode in enumerate(ds):
-        episode_id = episode["episode_metadata"]["episode_id"].numpy()
+        try:
+            episode_id = episode["episode_metadata"]["episode_id"].numpy()
+        except KeyError:
+            print(f"[WARN] 'episode_id' not found. Using fallback.")
+            episode_id = str(episode["episode_metadata"]["file_path"].numpy().decode().split("/")[-1].split(".")[0])
         file_path = episode["episode_metadata"]["file_path"].numpy().decode()
-        print(f"[BBoxes] Split {split_id} processing episode {ep_idx}: {episode_id} ({file_path})")
 
         if file_path not in bbox_results_json:
             bbox_results_json[file_path] = {}
@@ -62,7 +65,7 @@ def generate_bounding_boxes(
             if step_idx == 0:
                 lang_instruction = step["language_instruction"].numpy().decode()
 
-            image = Image.fromarray(step["observation"]["image_0"].numpy())
+            image = Image.fromarray(step["observation"]["image"].numpy())
             inputs = processor(
                 images=image,
                 text=post_process_caption(description, lang_instruction),
