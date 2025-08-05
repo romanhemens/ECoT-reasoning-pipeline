@@ -195,7 +195,6 @@ def compute_gripper_positions(
     tfds_name: str,
     data_dir: str = None,
     split: str = "train",
-    plot: bool = False,
     image_key: str = "image",
 ):
     """
