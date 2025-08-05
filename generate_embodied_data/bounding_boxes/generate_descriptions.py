@@ -25,7 +25,7 @@ def generate_descriptions(tfds_name, tfds_dir, start, end, device, hf_token, res
     vlm = load(vlm_model_id, hf_token=hf_token)
     vlm = vlm.to(device, dtype=torch.bfloat16)
 
-    results_json_path = os.path.join(results_path, f"results_{start}_{end}.json")
+    results_json_path = os.path.join(results_path, f"descriptions.json")
 
     def create_user_prompt(lang_instruction):
         prompt = "Briefly describe the things in this scene and their spatial relations to each other."
