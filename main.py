@@ -40,7 +40,7 @@ def parse_args():
 def main():
 
     print("Step 1: Generating descriptions...")
-    if os.path.isfile(os.path.join(output_dir, "descriptions", "full_descriptions.json")):
+    if os.path.isfile(os.path.join(output_dir, "descriptions.json")):
         print("Descriptions already generated. Skipping step 1.")
         # Hier kannst du optional eine Funktion aufrufen, die die bereits generierten Beschreibungen verarbeitet
         # z.B. merge_description_files(output_dir)
@@ -57,12 +57,12 @@ def main():
             results_path=os.path.join(output_dir, "descriptions"),
         )
 
-        print("Merging descriptions…")
-        merge_description_files(os.path.join(output_dir, "descriptions"))
+        #print("Merging descriptions…")
+        #merge_description_files(os.path.join(output_dir, "descriptions"))
 
 
-    print("Step 2: Extract bounding boxes...")
-    if os.path.isfile(os.path.join(output_dir, "bboxes", "full_bboxes.json")):
+    '''print("Step 2: Extract bounding boxes...")
+    if os.path.isfile(os.path.join(output_dir, "bboxes.json")):
         print("Bounding boxes already generated. Skipping step 2.")
     else:
 
@@ -73,13 +73,13 @@ def main():
             device=device,
             data_dir=data_dir,  # optional, falls du nicht den Standard-TFDS-Cache nutzt
             result_dir=os.path.join(output_dir, "bboxes"),
-            descriptions_path=os.path.join(output_dir, "descriptions", "full_descriptions.json"),
+            descriptions_path=os.path.join(output_dir, "descriptions.json"),
         )
 
         print("Merging bounding boxes…")
         merge_bbox_files(output_dir)
 
-
+    '''
     print("Step 3: Compute motion primitives...")
     if os.path.isfile(os.path.join(output_dir, "primitive", "primitive_movement.json")):
         print("Primitive movement already generated. Skipping step 3.")
