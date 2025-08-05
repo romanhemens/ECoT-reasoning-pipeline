@@ -11,7 +11,7 @@ detector = pipeline(model=checkpoint, task="zero-shot-object-detection")
 sam_model = SamModel.from_pretrained("facebook/sam-vit-base")
 sam_processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
 
-image_dims = (128, 128)
+image_dims = (256, 256)
 image_label = "image"
 
 
@@ -193,8 +193,10 @@ def get_corrected_positions(episode_id, builder, plot=False):
 
 def compute_gripper_positions(
     tfds_name: str,
-    data_dir: str = None,
-    split: str = "train",
+    data_dir: str,
+    start: int,
+    end: int,
+    device: str,
     image_key: str = "image",
 ):
     """
@@ -216,7 +218,7 @@ def compute_gripper_positions(
     ds = tfds.load(
         tfds_name,
         data_dir=data_dir,
-        split=split,
+        split=f"train[{start}%:{end}%]",
     )
 
     results = {}
