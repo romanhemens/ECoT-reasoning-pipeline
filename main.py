@@ -117,19 +117,16 @@ def main():
         with open(os.path.join(output_dir, "gripper", "gripper_positions.json"), "w") as f:
             json.dump(gripper_positions, f, indent=2)
 
-    stop = True
+    stop = False
     if not stop:
         print("Step 5: Generate plans and subtasks...")
-        DEFAULT_DATA_DIR = os.path.expanduser("~/tensorflow_datasets")
-        builder = tfds.builder_from_directory(
-            builder_dir=DEFAULT_DATA_DIR,
-            config=tfds_name)
-        episode_ids = range(start, end)
-
-        # NOTE the generator expects the captions.json file to be present in the working directory
-        # The captions should be generated using the script in
-        # scripts/generate_embodied_data/bounding_boxes/generate_descriptions.py
-        generate_reasonings(builder, episode_ids)
+        generate_reasonings(
+            tfds_name=tfds_name,
+            data_dir=data_dir,
+            start=start,
+            end=end,
+            output_dir=output_dir,
+        )
     else:
         print("Skipping step 5: Generating plans and subtasks.")
 
