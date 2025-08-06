@@ -2,11 +2,35 @@ import json
 import os
 import re
 import time
+import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from dotenv import load_dotenv
 import openai
 from google import genai
+import datetime
+import uuid
+
+def log_reasoning_entry(entry, reasoning_output, start_time, end_time, model_name, log_dir):
+    log_data = {
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "log_id": str(uuid.uuid4()),
+        "model_name": model_name,
+        "episode_id": entry["metadata"]["episode_id"],
+        "file_path": entry["metadata"]["file_path"],
+        "language_instruction": entry["metadata"]["language_instruction"],
+        "n_steps": entry["metadata"]["n_steps"],
+        "duration_sec": round(end_time - start_time, 3),
+        "n_reasoning_steps": len(entry["reasoning"]),
+        "all_steps_present": len(entry["reasoning"]) == entry["metadata"]["n_steps"],
+        "finished_flag_present": isinstance(reasoning_output, str) and "FINISHED" in reasoning_output,
+        "has_errors": reasoning_output is None or len(entry["reasoning"]) == 0
+    }
+
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, f"reasoning_log_{model_name.replace('.', '_')}.jsonl")
+    with open(log_file, "a") as f:
+        f.write(json.dumps(log_data) + "\n")
 
 class Gemini:
     def __init__(self, model_name="gemini-1.5-flash"):
@@ -85,8 +109,8 @@ class Gemini:
 def build_prompt(features, language_instruction, caption=None, list_only_moves=False):
     structured_features = "{\n"
 
-    print("features:", features)
-    print("keys:", features.keys())
+    #print("features:", features)
+    #print("keys:", features.keys())
     keys = list(features.keys())
 
     if list_only_moves:
@@ -243,11 +267,11 @@ def get_reasoning_dict(features, metadata, lm):
     caption = metadata["caption"] if "caption" in metadata.keys() else None
 
     prompt = build_prompt(features, language_instruction, caption=caption, list_only_moves=True)
-    print("metadata:", metadata, "\nprompt:", prompt)
+    #print("metadata:", metadata, "\nprompt:", prompt)
 
     reasoning_output = lm.generate(prompt)
 
-    print("reasoning:", reasoning_output)
+    #print("reasoning:", reasoning_output)
 
     return extract_reasoning_dict(reasoning_output)
 
@@ -281,60 +305,97 @@ def build_single_reasoning(ep_id, episode, file_path, ds, lm, captions, primitiv
 
     return entry
 
+def convert_floats(obj):
+    if isinstance(obj, dict):
+        return {k: convert_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_floats(v) for v in obj]
+    elif isinstance(obj, (np.float32, tf.float32)):
+        return float(obj)
+    elif isinstance(obj, (np.int32, tf.int32)):
+        return int(obj)
+    else:
+        return obj
+
 
 def generate_reasonings(
     tfds_name: str,
     data_dir: str = None,
     start: int = 0,
-    end: int = 5,
-    device: str = "cuda", 
+    end: int = 5, 
     output_dir = str,
 ):
-    reasonings = dict()
-    #lm = DeepSeek()
-    lm = Gemini()
 
-    ds = tfds.load(
-        tfds_name,
-        data_dir=data_dir,
-        split=f"train[{start}%:{end}%]",
-    )
+    model_names = ["gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
 
-    save_path = os.path.join(output_dir, "reasonings.json")
+    for model_name in model_names:
+        print(f"\n--- Running reasoning generation for model: {model_name} ---\n")
 
-    if os.path.exists(save_path):
-        print(save_path, "existing, loading contents")
-        with open(save_path, "r") as f:
-            reasonings = json.load(f)
+        lm = Gemini(model_name=model_name)
 
-        print("loaded reasonings:", sum([len(v) for v in reasonings.values()]), "entries")
+        reasonings = dict()
+        #lm = DeepSeek()
 
-    with open(os.path.join(output_dir, "descriptions", "full_descriptions.json"), "r") as captions_file:
-        captions_dict = json.load(captions_file)
-    with open(os.path.join(output_dir, "primitive", "primitive_movement.json"), "r") as f:
-        primitives = json.load(f)
-    with open(os.path.join(output_dir, "gripper", "gripper_positions.json"), "r") as f:
-        grippers = json.load(f)
-    
+        ds = tfds.load(
+            tfds_name,
+            data_dir=data_dir,
+            split=f"train[{start}%:{end}%]",
+        )
 
-    for ep_idx, episode in enumerate(ds):
+        save_path = os.path.join(output_dir, "reasonings.json")
 
-        try:
-            ep_id = episode["episode_metadata"]["episode_id"].numpy()
-        except KeyError:
-            print(f"[WARN] 'episode_id' not found. Using fallback.")
-            ep_id = str(episode["episode_metadata"]["file_path"].numpy().decode().split("/")[-1].split(".")[0])
-        file_path = episode["episode_metadata"]["file_path"].numpy().decode()
+        '''if os.path.exists(save_path):
+            print(save_path, "existing, loading contents")
+            with open(save_path, "r") as f:
+                reasonings = json.load(f)
 
+            print("loaded reasonings:", sum([len(v) for v in reasonings.values()]), "entries")'''
 
-        entry = build_single_reasoning(ep_id, episode, file_path, ds, lm, captions_dict, primitives, grippers)
+        with open(os.path.join(output_dir, "descriptions.json"), "r") as captions_file:
+            captions_dict = json.load(captions_file)
+        with open(os.path.join(output_dir, "primitive", "primitive_movement.json"), "r") as f:
+            primitives = json.load(f)
+        with open(os.path.join(output_dir, "gripper", "gripper_positions.json"), "r") as f:
+            grippers = json.load(f)
+        
 
-        if entry["metadata"]["file_path"] in reasonings.keys():
-            reasonings[entry["metadata"]["file_path"]][entry["metadata"]["episode_id"]] = entry
-        else:
-            reasonings[entry["metadata"]["file_path"]] = {entry["metadata"]["episode_id"]: entry}
+        for ep_idx, episode in enumerate(ds):
 
-        print("computed reasoning:", entry)
+            try:
+                ep_id = episode["episode_metadata"]["episode_id"].numpy()
+            except KeyError:
+                print(f"[WARN] 'episode_id' not found. Using fallback.")
+                ep_id = str(episode["episode_metadata"]["file_path"].numpy().decode().split("/")[-1].split(".")[0])
+                print(f"[WARN] Using episode_id: {ep_id}")
+            file_path = episode["episode_metadata"]["file_path"].numpy().decode()
 
-    with open(save_path, "w") as out_f:
-        json.dump(reasonings, out_f)
+            try:
+                start_time = time.time()
+                entry = build_single_reasoning(ep_id, episode, file_path, ds, lm, captions_dict, primitives, grippers)
+                end_time = time.time()
+
+                # Logging here
+                log_reasoning_entry(
+                    entry=entry,
+                    reasoning_output="\n".join([str(v) for v in entry["reasoning"].values()]),
+                    start_time=start_time,
+                    end_time=end_time,
+                    model_name=model_name,
+                    log_dir=args.output_dir
+                )
+
+                if entry["metadata"]["file_path"] in reasonings.keys():
+                    reasonings[entry["metadata"]["file_path"]][entry["metadata"]["episode_id"]] = entry
+                else:
+                    reasonings[entry["metadata"]["file_path"]] = {entry["metadata"]["episode_id"]: entry}
+
+            except Exception as e:
+                print(f"[ERROR] Failed on episode {ep_id}: {e}")
+                continue
+
+            break
+
+        # Save full results after each model run
+        output_file = os.path.join(args.output_dir, f"reasonings_{model_name.replace('.', '_')}.json")
+        with open(output_file, "w") as out_f:
+            json.dump(convert_floats(reasonings), out_f)
