@@ -6,10 +6,16 @@ from PIL import Image
 from transformers import SamModel, SamProcessor, pipeline
 import tensorflow_datasets as tfds
 
-checkpoint = "google/owlvit-base-patch16"
-detector = pipeline(model=checkpoint, task="zero-shot-object-detection")
-sam_model = SamModel.from_pretrained("facebook/sam-vit-base")
-sam_processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
+DEVICE = torch.device("cpu")
+
+sam_model = None
+sam_processor = None
+detector = None
+
+#checkpoint = "google/owlvit-base-patch16"
+#detector = pipeline(model=checkpoint, task="zero-shot-object-detection")
+#sam_model = SamModel.from_pretrained("facebook/sam-vit-base")
+#sam_processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
 
 image_dims = (256, 256)
 image_label = "image"
@@ -52,13 +58,14 @@ def get_gripper_mask(img, pred):
     ]
 
     inputs = sam_processor(img, input_boxes=[[[box]]], return_tensors="pt")
+    inputs = {k: v.to(DEVICE) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
 
     with torch.no_grad():
         outputs = sam_model(**inputs)
 
     mask = sam_processor.image_processor.post_process_masks(
         outputs.pred_masks, inputs["original_sizes"], inputs["reshaped_input_sizes"]
-    )[0][0][0].numpy()
+    )[0][0][0].cpu().numpy()
 
     return mask
 
@@ -136,6 +143,31 @@ def get_gripper_pos_raw(img):
     return (int(pos[0]), int(pos[1])), mask, predictions[0]
 
 
+def get_gripper_pos_raw_batch(images):
+    pil_imgs = [Image.fromarray(img.numpy()) for img in images]
+
+    # Batch prediction
+    batch_inputs = [
+        {"image": img, "candidate_labels": ["the black robotic gripper"]}
+        for img in pil_imgs
+    ]
+    batch_predictions = detector(batch_inputs, threshold=0.01)
+
+    results = []
+    for img, predictions in zip(pil_imgs, batch_predictions):
+        if len(predictions) > 0:
+            mask = get_gripper_mask(img, predictions[0])
+            pos = mask_to_pos_naive(mask)
+        else:
+            mask = np.zeros(image_dims)
+            pos = (-1, -1)
+            predictions = [None]
+
+        results.append(((int(pos[0]), int(pos[1])), mask, predictions[0]))
+
+    return results
+
+
 def process_trajectory(episode):
     images = [step["observation"][image_label] for step in episode["steps"]]
     states = [step["observation"]["state"] for step in episode["steps"]]
@@ -190,6 +222,30 @@ def get_corrected_positions(episode_id, builder, plot=False):
 
     return pr_pos
 
+def initialize_models(device: str = "cpu"):
+    """
+    Initializes the models used for gripper position detection.
+    
+    Args:
+        device: Device to run the models on (e.g., 'cpu', 'cuda').
+    """
+    global DEVICE, sam_model, sam_processor, detector
+
+    DEVICE = torch.device(device if torch.cuda.is_available() else "cpu")
+
+    print(f"[INFO] Loading models on {DEVICE}...")
+
+    sam_model = SamModel.from_pretrained("facebook/sam-vit-base").to(DEVICE)
+    sam_processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
+
+    device_id = torch.device(device).index if "cuda" in device else -1
+    detector = pipeline(model="google/owlvit-base-patch16", task="zero-shot-object-detection", device=device_id, batch_size=8)
+
+    print(f"Detector läuft auf Gerät: {detector.model.device}")
+
+
+    print(f"[INFO] Models initialized on {DEVICE}.")
+
 
 def compute_gripper_positions(
     tfds_name: str,
@@ -215,6 +271,8 @@ def compute_gripper_positions(
     """
     from sklearn.linear_model import RANSACRegressor
 
+    initialize_models(device)
+
     ds = tfds.load(
         tfds_name,
         data_dir=data_dir,
@@ -237,7 +295,11 @@ def compute_gripper_positions(
         images_np = [img.numpy() for img in images]
         states = [step["observation"]["state"] for step in episode["steps"]]
 
-        raw_trajectory = [(*get_gripper_pos_raw(img), state) for img, state in zip(images, states)]
+        #raw_trajectory = [(*get_gripper_pos_raw(img), state) for img, state in zip(images, states)]
+
+        raw_outputs = get_gripper_pos_raw_batch(images)
+        raw_trajectory = [(*output, state) for output, state in zip(raw_outputs, states)]
+
 
         # Handle missing detections
         prev_found = list(range(len(raw_trajectory)))
