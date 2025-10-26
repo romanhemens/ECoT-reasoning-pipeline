@@ -1,6 +1,6 @@
 # ECoT Reasoning Chain
 
-**Reasoning Chain** is a research-oriented framework for generating structured reasoning and motion data from RLDS (Reinforcement Learning Dataset Standard) episodes involving robotic manipulators. 
+**ECoT Reasoning Chain** is a research-oriented framework for generating structured reasoning and motion data from RLDS (Reinforcement Learning Dataset Standard) episodes involving robotic manipulators. 
 It orientates itself on [Embodied Chain of Thought](https://github.com/MichalZawalski/embodied-CoT/tree/main?tab=readme-ov-file) and leverages their repository into an easy-to-use pipeline. 
 The pipeline processes datasets such as [**LIBERO**](https://github.com/Lifelong-Robot-Learning/LIBERO) or [**BRIDGE**](https://rail-berkeley.github.io/bridgedata/) to produce high-quality annotations, reasoning traces, and motion analyses.
 
